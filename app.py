@@ -406,9 +406,137 @@ def execute_with_crewai(
         raise
 
 
-# ============================================================================
-# GRADIO UI
-# ============================================================================
+def generate_script(system_json_data: Dict[str, Any], query_text: str) -> str:  # pylint: disable=too-many-locals
+    """
+    Generate a standalone Python script to run the multi-agent system with CrewAI.
+
+    Args:
+        system_json_data: Extracted system structure
+        query_text: User query to execute
+
+    Returns:
+        Python script as a string
+    """
+    agents_code = []
+    tasks_code = []
+
+    for i, agent_config in enumerate(system_json_data.get("agents", [])):
+        agent_name = agent_config.get("name", f"Agent{i}").replace(" ", "_").lower()
+        role = agent_config.get("role", "Assistant")
+        output = agent_config.get("output", "Completed task result")
+
+        # Generate agent code
+        agents_code.append(f'''
+{agent_name} = Agent(
+    role="{role}",
+    goal="Execute tasks related to: {agent_config.get('name', 'Unknown')}",
+    backstory="An AI agent specialized in {role.lower()}",
+    verbose=True,
+    allow_delegation=True,
+    llm=llm
+)''')
+
+        # Generate tasks from tools
+        tools_info = agent_config.get("tools", [])
+        for j, tool in enumerate(tools_info):
+            task_name = f"{agent_name}_task_{j}"
+            task_description = tool.get("description", tool.get("name", "Task"))
+            subtasks = tool.get("tasks", [])
+            if subtasks:
+                task_description += f"\\nSubtasks: {', '.join(subtasks)}"
+
+            tasks_code.append(f'''
+{task_name} = Task(
+    description="""{task_description}""",
+    agent={agent_name},
+    expected_output="{output}"
+)''')
+
+    # Build the agent list and task list strings
+    agent_names = [a.get("name", f"Agent{i}").replace(" ", "_").lower()
+                   for i, a in enumerate(system_json_data.get("agents", []))]
+    task_names = []
+    for i, agent_config in enumerate(system_json_data.get("agents", [])):
+        agent_name = agent_config.get("name", f"Agent{i}").replace(" ", "_").lower()
+        for j, _ in enumerate(agent_config.get("tools", [])):
+            task_names.append(f"{agent_name}_task_{j}")
+
+    # If no tasks, create a default task
+    default_task = ""
+    if not task_names and agent_names:
+        default_task = f'''
+# Default task (no specific tasks defined in the system)
+default_task = Task(
+    description="""{query_text}""",
+    agent={agent_names[0]},
+    expected_output="Response to the user query"
+)'''
+        task_names = ["default_task"]
+
+    script = f'''#!/usr/bin/env python3
+"""
+CrewAI Multi-Agent System
+
+Generated from extracted system JSON.
+Run with: python crewai_system.py
+"""
+
+import os
+
+import langchain
+
+from crewai import Agent, Task, Crew, Process
+from langchain_openai import ChatOpenAI
+
+langchain.verbose = False
+
+# Ensure API key is set
+if not os.getenv("OPENAI_API_KEY"):
+    raise ValueError("Please set OPENAI_API_KEY environment variable")
+
+# Initialize LLM
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    temperature=0.7
+)
+
+# =============================================================================
+# AGENTS
+# =============================================================================
+{"".join(agents_code)}
+
+# =============================================================================
+# TASKS
+# =============================================================================
+{"".join(tasks_code)}{default_task}
+
+# =============================================================================
+# CREW
+# =============================================================================
+
+crew = Crew(
+    agents=[
+        {',\n\t\t'.join(agent_names)}
+    ],
+    tasks=[
+        {',\n\t\t'.join(task_names)}
+    ],
+    process=Process.sequential,
+    verbose=True
+)
+
+# =============================================================================
+# RUN
+# =============================================================================
+
+if __name__ == "__main__":
+    result = crew.kickoff()
+    print(result)
+
+'''
+
+    return script
+
 
 # Default example prompt
 DEFAULT_PROMPT = """In my image:
@@ -551,12 +679,23 @@ def execute_tab(shared_state):
                 )
 
         execute_button = gr.Button("🚀 Run", variant="primary", size="lg")
+        generate_script_btn = gr.Button("📄 Generate Script", variant="secondary", size="lg")
 
         with gr.Row():
             execution_status = gr.Textbox(label="Execution Status", lines=3, interactive=False)
 
         with gr.Row():
             execution_output = gr.Textbox(label="Results", lines=15, interactive=False)
+
+        with gr.Row():
+            script_output = gr.Code(
+                label="Generated CrewAI Script",
+                language="python",
+                lines=20,
+                interactive=False,
+                visible=False
+            )
+            script_download = gr.File(label="Download Script", visible=False)
 
     # Handle JSON file upload
     def load_json_file(file):
@@ -590,6 +729,38 @@ def execute_tab(shared_state):
         fn=handle_execution,
         inputs=[json_input, query_input, execution_api_key],
         outputs=[execution_status, execution_output]
+    )
+
+    # Handle script generation
+    def handle_generate_script(json_data, query):
+        if not json_data:
+            return (
+                gr.update(visible=True, value="# Error: Please provide system JSON first"),
+                gr.update(visible=False)
+            )
+
+        try:
+            script = generate_script(json_data, query or "Execute the multi-agent workflow")
+
+            # Save script to file
+            script_path = "crewai_system.py"
+            with open(script_path, "w", encoding='utf-8') as f:
+                f.write(script)
+
+            return (
+                gr.update(visible=True, value=script),
+                gr.update(visible=True, value=script_path)
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            return (
+                gr.update(visible=True, value=f"# Error generating script: {str(e)}"),
+                gr.update(visible=False)
+            )
+
+    generate_script_btn.click(  # pylint: disable=no-member
+        fn=handle_generate_script,
+        inputs=[json_input, query_input],
+        outputs=[script_output, script_download]
     )
 
     # Sync JSON from extract tab
