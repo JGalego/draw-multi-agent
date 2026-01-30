@@ -1,0 +1,11 @@
+# Core dependencies
+gradio
+openai
+python-dotenv
+
+# CrewAI framework
+crewai
+langchain-openai
+
+# Utilities
+pillow
