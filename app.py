@@ -396,8 +396,7 @@ def execute_with_crewai(
 
         logger.info("Running CrewAI crew...")
         crew_result = crew.kickoff()
-
-        return f"CrewAI Execution Result:\n\n{crew_result}"
+        return str(crew_result)
 
     except ImportError:
         return ("❌ CrewAI not installed. "
@@ -551,7 +550,7 @@ def execute_tab(shared_state):
                     value=os.getenv("OPENAI_API_KEY", "")
                 )
 
-        execute_button = gr.Button("🚀 Run Multi-Agent System", variant="primary", size="lg")
+        execute_button = gr.Button("🚀 Run", variant="primary", size="lg")
 
         with gr.Row():
             execution_status = gr.Textbox(label="Execution Status", lines=3, interactive=False)
@@ -611,23 +610,50 @@ def analyze_results_tab():
     with gr.Column():
         gr.Markdown("## 📊 Step 5: Analyze Results")
 
-        refresh_button = gr.Button("🔄 Refresh Metrics", variant="secondary")
+        with gr.Row():
+            refresh_button = gr.Button("🔄 Refresh", variant="secondary")
+            show_last_n = gr.Slider(
+                minimum=10,
+                maximum=200,
+                value=50,
+                step=10,
+                label="Show last N log lines"
+            )
+            newest_first = gr.Checkbox(label="Newest first", value=True)
 
         with gr.Row():
             with gr.Column():
                 metrics_display = gr.JSON(label="System Metrics")
 
             with gr.Column():
-                logs_display = gr.Textbox(
+                logs_display = gr.Code(
                     label="Execution Logs",
+                    language=None,
                     lines=20,
                     interactive=False
                 )
 
-        download_logs = gr.Button("💾 Download Logs")
+        download_logs = gr.Button("💾 Download")
         logs_file = gr.File(label="Log File")
 
-        def refresh_metrics():
+        def format_logs(log_content: str, last_n: int, reverse: bool) -> str:
+            """Format log content for display."""
+            if not log_content:
+                return "No logs available yet!"
+
+            lines = log_content.strip().split('\n')
+
+            # Take last N lines
+            if len(lines) > last_n:
+                lines = lines[-last_n:]
+
+            # Reverse if newest first
+            if reverse:
+                lines = lines[::-1]
+
+            return '\n'.join(lines)
+
+        def refresh_metrics(last_n, reverse):
             # Load metrics if available
             try:
                 if os.path.exists("metrics.json"):
@@ -638,7 +664,8 @@ def analyze_results_tab():
 
                 if os.path.exists("execution.log"):
                     with open("execution.log", "r", encoding='utf-8') as f:
-                        logs = f.read()
+                        raw_logs = f.read()
+                    logs = format_logs(raw_logs, int(last_n), reverse)
                 else:
                     logs = "No logs available yet"
 
@@ -653,6 +680,7 @@ def analyze_results_tab():
 
         refresh_button.click(  # pylint: disable=no-member
             fn=refresh_metrics,
+            inputs=[show_last_n, newest_first],
             outputs=[metrics_display, logs_display]
         )
 
