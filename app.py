@@ -503,12 +503,12 @@ llm = ChatOpenAI(
 # =============================================================================
 # AGENTS
 # =============================================================================
-{"".join(agents_code)}
+{"\n".join(agents_code)}
 
 # =============================================================================
 # TASKS
 # =============================================================================
-{"".join(tasks_code)}{default_task}
+{"\n".join(tasks_code)}{default_task}
 
 # =============================================================================
 # CREW
@@ -863,12 +863,11 @@ def analyze_results_tab():
 def create_app():
     """Create and configure the Gradio application"""
     with gr.Blocks(
-        title="Multi-Agent System Extractor & Executor",
-        theme=gr.themes.Soft()
+        title="Diagram-to-Agents",
     ) as app:
         gr.Markdown("""
-        # 🤖 Multi-Agent System Extractor & Executor
-        ### Convert hand-drawn diagrams to JSON → Execute with CrewAI
+        # 🤖 Diagram-to-Agents
+        ### Convert hand-drawn diagrams of multi-agent systems to JSON → Execute with CrewAI
         """)
 
         shared_state = {}
@@ -891,6 +890,7 @@ def main():
     load_dotenv()
     app = create_app()
     app.launch(
+        theme=gr.themes.Soft(),
         server_name="0.0.0.0",
         server_port=7860,
         share=False
