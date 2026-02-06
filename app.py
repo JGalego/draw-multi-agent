@@ -6,7 +6,8 @@ diagrams of multi-agent systems into structured JSON, then executes them using
 CrewAI.
 
 Features:
-    - Image upload and AI-powered diagram analysis
+    - Image upload or webcam capture for diagrams
+    - AI-powered diagram analysis
     - Configurable shape conventions for diagram interpretation
     - CrewAI-powered agent execution
     - Observability with metrics and logging
@@ -573,7 +574,10 @@ def extract_tab():
                 image_input = gr.Image(
                     label="Upload hand-drawn diagram",
                     type="filepath",
-                    sources=["upload"]
+                    sources=["upload", "webcam"],
+                    webcam_options=gr.WebcamOptions(
+                        mirror=False,
+                    )
                 )
                 gr.Markdown("**Supported:** `PNG`, `JPG`, `JPEG` (Max 200MB)")
 

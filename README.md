@@ -4,11 +4,11 @@ Convert hand-drawn diagrams of multi-agent systems to JSON and execute them with
 
 > Adapted from [Building Multi-Agents from Paper 📝 by Hand ✍️](https://www.byhand.ai/p/building-multi-agents-from-paper)
 
-![app_screenshot](ui.png)
+![Draw Agents!](draw_agents.png)
 
 ## 🌟 Features
 
-- **📸 Image Upload**: Upload hand-drawn multi-agent diagrams (PNG, JPG, JPEG)
+- **📸 Image Upload or Camera Capture**: Upload hand-drawn diagrams or capture them directly with your webcam
 - **🔍 AI Extraction**: Use GPT-4o Vision to extract system structure from drawings
 - **⚙️ Agent Execution**: Run with CrewAI framework
 - **📊 Observability**: Track execution metrics and logs
